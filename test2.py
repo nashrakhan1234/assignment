@@ -102,21 +102,35 @@ class DebugVideoSteganography:
     
     def _embed_bit_in_coefficient(self, coeff, bit):
         """Embed a bit in a DCT coefficient using quantization."""
-        quantization_step = self.alpha * abs(coeff) if abs(coeff) > 1 else self.alpha
+        quantization_step = max(self.alpha, 0.1)  # Minimum step to avoid precision issues
         
         if bit == '1':
-            if int(coeff / quantization_step) % 2 == 0:
-                coeff += quantization_step if coeff >= 0 else -quantization_step
+            # Make coefficient clearly represent odd quantization level
+            if abs(coeff) < quantization_step:
+                coeff = quantization_step if coeff >= 0 else -quantization_step
+            else:
+                current_level = int(round(coeff / quantization_step))
+                if current_level % 2 == 0:  # Currently even, make it odd
+                    coeff += quantization_step if coeff >= 0 else -quantization_step
         else:
-            if int(coeff / quantization_step) % 2 == 1:
+            # Make coefficient clearly represent even quantization level (including zero)
+            current_level = int(round(coeff / quantization_step))
+            if current_level % 2 == 1:  # Currently odd, make it even
                 coeff += quantization_step if coeff >= 0 else -quantization_step
         
         return coeff
     
     def _extract_bit_from_coefficient(self, coeff):
         """Extract a bit from a DCT coefficient."""
-        quantization_step = self.alpha * abs(coeff) if abs(coeff) > 1 else self.alpha
-        return '1' if int(coeff / quantization_step) % 2 == 1 else '0'
+        quantization_step = max(self.alpha, 0.1)  # Same minimum step as embedding
+        
+        # For very small coefficients, consider them as 0 (even)
+        if abs(coeff) < quantization_step * 0.5:
+            return '0'
+        
+        # Determine if the coefficient represents odd or even quantization level
+        quantized_value = int(round(coeff / quantization_step))
+        return '1' if quantized_value % 2 == 1 else '0'
     
     def _get_embedding_positions(self):
         """Get mid-frequency positions for embedding in 8x8 DCT block."""
@@ -227,9 +241,29 @@ class DebugVideoSteganography:
         
         # Compare original vs extracted
         print(f"\n--- Comparison ---")
+        print(f"Original binary length:  {len(binary_data)}")
+        print(f"Extracted binary length: {len(extracted_bits)}")
+        
+        # Truncate extracted to match original length
+        if len(extracted_bits) > len(binary_data):
+            extracted_bits = extracted_bits[:len(binary_data)]
+        
         print(f"Original binary:  {binary_data[:50]}...")
         print(f"Extracted binary: {extracted_bits[:50]}...")
-        print(f"Match: {binary_data == extracted_bits}")
+        exact_match = binary_data == extracted_bits
+        print(f"Match: {exact_match}")
+        
+        if not exact_match:
+            # Find first difference
+            for i, (orig, extr) in enumerate(zip(binary_data, extracted_bits)):
+                if orig != extr:
+                    print(f"First difference at bit {i}: original '{orig}' vs extracted '{extr}'")
+                    # Calculate which block and position this corresponds to
+                    block_num = i // len(embedding_positions)
+                    pos_in_block = i % len(embedding_positions)
+                    pos = embedding_positions[pos_in_block]
+                    print(f"  This is block {block_num}, position {pos}")
+                    break
         
         # Try to decode
         extracted_text = self._binary_to_text(extracted_bits)
@@ -257,14 +291,19 @@ def main():
         print("Could not read frame")
         sys.exit(1)
     
-    # Test embedding and extraction
-    debug_system = DebugVideoSteganography(alpha=0.2)
-    result = debug_system.test_embed_extract(frame, test_text)
+    # Test with different alpha values
+    alphas_to_test = [0.2, 0.5, 1.0]
     
-    print(f"\n=== Final Result ===")
-    print(f"Original text: '{test_text}'")
-    print(f"Extracted text: '{result}'")
-    print(f"Success: {test_text == result}")
+    for alpha in alphas_to_test:
+        print(f"\n{'='*20} Testing with alpha={alpha} {'='*20}")
+        debug_system = DebugVideoSteganography(alpha=alpha)
+        result = debug_system.test_embed_extract(frame, test_text)
+        
+        print(f"Alpha {alpha}: {'SUCCESS' if result == test_text else 'FAILED'}")
+        
+        if result == test_text:
+            print(f"✅ Found working alpha: {alpha}")
+            break
 
 if __name__ == "__main__":
     main()
