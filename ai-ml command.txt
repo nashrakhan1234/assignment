@@ -1,0 +1,3 @@
+python debug.py  input.mp4
+
+python test1.py input_video.mp4 input.mp4 "hello world"
