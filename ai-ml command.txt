@@ -1,4 +1,3 @@
-python test1.py input_video.mp4 output_corrected.mp4 "hello world"
+python embed_text_1.py input.mp4 output_lossless.avi "Hello tick tick" 75.0
 
-python test2.py output_corrected.mp4
-
+python extract_text_1.py output_lossless.avi 75.0
