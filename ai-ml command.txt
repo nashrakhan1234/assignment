@@ -4,7 +4,15 @@ python extract_text_1.py output_lossless.avi 75.0
 
 
 
+using QR codede
+python embed_qr.py
+python extract_qr.py
+
 
 from phone recording
 python script.py --mode embed --input original.mp4 --output test.avi --message "h2"
 python script.py --mode extract --input phone_recorded.mp4
+
+
+
+
